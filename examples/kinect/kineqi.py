@@ -43,43 +43,24 @@ VIDEO_WINSIZE = 640,480
 pygame.init()
 
 
-SKELETON_COLORS = [THECOLORS["red"], 
-					 THECOLORS["blue"], 
-					 THECOLORS["green"], 
-					 THECOLORS["orange"], 
-					 THECOLORS["purple"], 
-					 THECOLORS["yellow"], 
-					 THECOLORS["violet"]]
-
-LEFT_ARM = (JointId.ShoulderCenter, 
-			JointId.ShoulderLeft, 
-			JointId.ElbowLeft, 
-			JointId.WristLeft, 
-			JointId.HandLeft)
-RIGHT_ARM = (JointId.ShoulderCenter, 
-			 JointId.ShoulderRight, 
-			 JointId.ElbowRight, 
-			 JointId.WristRight, 
-			 JointId.HandRight)
-LEFT_LEG = (JointId.HipCenter, 
-			JointId.HipLeft, 
-			JointId.KneeLeft, 
-			JointId.AnkleLeft, 
-			JointId.FootLeft)
-RIGHT_LEG = (JointId.HipCenter, 
-			 JointId.HipRight, 
-			 JointId.KneeRight, 
-			 JointId.AnkleRight, 
-			 JointId.FootRight)
-SPINE = (JointId.HipCenter, 
-		 JointId.Spine, 
-		 JointId.ShoulderCenter, 
-		 JointId.Head)
-
+# Color que se le pone a cada uno de los esqueletos
+SKELETON_COLORS = [THECOLORS["red"], THECOLORS["blue"], THECOLORS["green"],  THECOLORS["orange"], 
+					THECOLORS["purple"], THECOLORS["yellow"],  THECOLORS["violet"]]
+# Conjuntos de articulaciones por miembro.
+LEFT_ARM = (JointId.ShoulderCenter, JointId.ShoulderLeft, JointId.ElbowLeft, JointId.WristLeft,	JointId.HandLeft)
+RIGHT_ARM = (JointId.ShoulderCenter, JointId.ShoulderRight, JointId.ElbowRight, JointId.WristRight, JointId.HandRight)
+LEFT_LEG = (JointId.HipCenter, JointId.HipLeft, JointId.KneeLeft, JointId.AnkleLeft, JointId.FootLeft)
+RIGHT_LEG = (JointId.HipCenter, JointId.HipRight, JointId.KneeRight, JointId.AnkleRight, JointId.FootRight)
+SPINE = (JointId.HipCenter, JointId.Spine, JointId.ShoulderCenter, JointId.Head)
+# Simplificamos la llamada a la funcion
 skeleton_to_depth_image = nui.SkeletonEngine.skeleton_to_depth_image
 
 
 class Pepper:
+	""" 
+		Creamos la clase Pepper, en esta clase se va encargar de calcular los angulos que forman cada articulacion 
+		y se encarga tambien de pasarle estos movimientos al robot virtual.
+	"""
 
 	## Restructuramos el Skeleto
 	@staticmethod 
@@ -90,20 +71,23 @@ class Pepper:
 		esqueleto['hombroDer'] = data.SkeletonPositions[JointId.ShoulderRight]
 		esqueleto['codoIzq'] = data.SkeletonPositions[JointId.ElbowLeft]
 		esqueleto['codoDer'] = data.SkeletonPositions[JointId.ElbowRight]
-		# Empezamos con las rotaciones
-		giros = {}
-		rotElbowRight = data.calculate_bone_orientations()[JointId.ElbowRight]
-		quaterElbowRight =  rotElbowRight.absolute_rotation.rotation_quaternion
-		#print quaterElbowRight
-		roll, pitch, yaw = Pepper.quaternion2euler(quaterElbowRight)
-		giros['shoulderPitch'] = yaw
-		giros['shoulderRoll'] = roll
-		Pepper.mierda(esqueleto['codoDer'], esqueleto['hombroDer'])
-		return giros
+		esqueleto['manoIzq'] = data.SkeletonPositions[JointId.WristLeft]
+		esqueleto['manoDer'] = data.SkeletonPositions[JointId.WristRight]
+		## Empezamos con las rotaciones
+		# giros = {}
+		# rotElbowRight = data.calculate_bone_orientations()[JointId.ElbowRight]
+		# quaterElbowRight =  rotElbowRight.absolute_rotation.rotation_quaternion
+		# print quaterElbowRight
+		# roll, pitch, yaw = Pepper.quaternion2euler(quaterElbowRight)
+		# giros['shoulderPitch'] = yaw
+		# giros['shoulderRoll'] = roll
+		# Pepper.mierda(esqueleto['codoDer'], esqueleto['hombroDer'])
+		return esqueleto
 
 
+	# Calculamos los angulos que forman los dos puntos (articulaciones) en los tres planos.
 	@staticmethod
-	def mierda (puntoA, puntoB):
+	def angulosXplano (puntoA, puntoB):
 
 		def calcularAngulo(uno, dos):
 			# Compute the angle
@@ -111,9 +95,6 @@ class Pepper:
 			rads %= 2*math.pi
 			degs = math.degrees(rads)
 			return degs
-
-		def ecRecta(pprmin,pprmax,valmin, valmax, value):
-			return ((pprmax-pprmin)/(valmax-valmin)) *  (value - valmin ) + pprmin
 
 		dx = puntoB.x - puntoA.x
 		dy = puntoB.y - puntoA.y
@@ -123,95 +104,161 @@ class Pepper:
 		roll = calcularAngulo(dy, dz)
 		pitch = calcularAngulo(dx, dz)
 
-		roll = ecRecta(110, -110, 350, 200, roll)
-		pitch = ecRecta(-0.5, -89.5, 230, 160, pitch)
-		print('Mierda roll {1}, yaw {0}, pitch {2}'.format(yaw,roll, pitch))
+		angulosEuler = {'roll': roll, 'pitch': pitch, 'yaw': yaw}
+		return angulosEuler
+		#roll = ecRecta(110, -110, 350, 200, roll)
+		#pitch = ecRecta(-0.5, -89.5, 230, 160, pitch)
+		#print('Mierda roll {1}, yaw {0}, pitch {2}'.format(yaw,roll, pitch))
+		#try:
+		#	mot.setAngles('RShoulderPitch', math.radians(roll) , 0.5)
+		#	mot.setAngles('RShoulderRoll', math.radians(pitch) , 0.5)
+		#except:
+		#	print('Fuera de rango')
+
+	## Esta funcion crea un diccionario que contiene los angulos de euler por cada articulacion. (Pitch, Roll y Yaw).
+	## Estos angulos se calcular llamanando a la funcion angulosXplano
+	@staticmethod
+	def giros(esqueleto):
+		giros = {}
+		giros['hombroDer']	= Pepper.angulosXplano(esqueleto['codoDer'], esqueleto['hombroDer'])
+		giros['hombroIzq']	= Pepper.angulosXplano(esqueleto['codoIzq'], esqueleto['hombroIzq'])
+
+
+		if giros['hombroIzq']['pitch'] < 180:
+			giros['hombroIzq']['pitch'] = giros['hombroIzq']['pitch']+360
+
+		giros['codoDer']	= Pepper.angulosXplano(esqueleto['manoDer'], esqueleto['codoDer'])
+		giros['codoIzq']	= Pepper.angulosXplano(esqueleto['manoIzq'], esqueleto['codoIzq'])
+
+		# render text
+		myfont = pygame.font.SysFont("monospace", 20)
+		#for gi in giros['codoDer']: 
+		#	label1 = myfont.render('roll: ' +str(giros['codoDer']['roll']), 1, (255,0,255))
+		#	label2 = myfont.render('pitch: '+str(giros['codoDer']['pitch']), 1, (255,0,255))
+		#	label3 = myfont.render('yaw: '  +str(giros['codoDer']['yaw']), 1, (255,0,255))
+		#	screen.blit(label1, (50, 50))
+		#	screen.blit(label2, (50, 75))
+		#	screen.blit(label3, (50, 90))
+
+		return giros
+
+
+
+	@staticmethod
+	def movimientos (giros):
+
+		movimientos = {}
+
+		def ecRecta(pprmin,pprmax,valmin, valmax, value):
+			return ((pprmax-pprmin)/(valmax-valmin)) *  (value - valmin ) + pprmin
+
+		movimientos['RshoulderRoll'] = ecRecta(-0.5, -89.5, 230, 160, giros['hombroDer']['pitch'])
+		movimientos['RshoulderPitch'] = ecRecta(110, -110, 350, 200,  giros['hombroDer']['roll'])
+		movimientos['LshoulderRoll'] = ecRecta(0.5, 89.5, 320, 400, giros['hombroIzq']['pitch'])
+		movimientos['LshoulderPitch'] = ecRecta(110, -110, 350, 200,  giros['hombroIzq']['roll'])
+		movimientos['RElbowRoll'] = ecRecta(0, 89.5, 250, 191,  giros['codoDer']['roll'])
+
+		# render text
+		#myfont = pygame.font.SysFont("monospace", 20)
+		#label = myfont.render("mov izq "+str(movimientos['LshoulderRoll'] ), 1, (255,0,255))
+		#screen.blit(label, (100, 100))
+
+		return movimientos
+
+
+	@staticmethod
+	def moverRobot (movimientos):
+
 		try:
-			mot.setAngles('RShoulderPitch', math.radians(roll) , 0.5)
-			mot.setAngles('RShoulderRoll', math.radians(pitch) , 0.5)
+			mot.setAngles('RShoulderRoll',  math.radians(movimientos['RshoulderRoll']), 0.5)
+			mot.setAngles('RShoulderPitch', math.radians(movimientos['RshoulderPitch']), 0.5)
+			mot.setAngles('LShoulderRoll',  math.radians(movimientos['LshoulderRoll']), 0.5)
+			mot.setAngles('LShoulderPitch', math.radians(movimientos['LshoulderPitch']), 0.5)
+			mot.setAngles('RElbowRoll', math.radians(movimientos['RElbowRoll']), 0.5)
 		except:
-			print('Fuera de rango')
-
-
-
+			print('Algun movimiento no se encuentra dentro del rango de grados')
 	
-	## Calcular los angulos de la mecanica de los brazos
-	@staticmethod 
-	def calculateGiros( giros ):
-
-		girosEsperados = {}
-
-		girosEsperados['shoulderPitch'] = ecuRecta(2.2, -0.5, -2.0857,  2.0857, giros['shoulderPitch'])
-		girosEsperados['shoulderRoll']  = ecuRecta(2.2, -0.5, -1.5620, -0.0087, giros['shoulderRoll'])
-		
-		return girosEsperados
-
-	@staticmethod
-	def vector(a,b):
-		vector = {}
-		vector['x'] = b.x - a.x
-		vector['y'] = b.y - a.y
-		vector['z'] = b.z - a.z
-		return vector
-	@staticmethod
-	def quaternion2euler(q):
-		#print q
-		t0   = 2 * (q.w * q.x + q.y * q.z)
-		t1   = 1 - 2 * (q.x * q.x + q.y * q.y)
-		pitch = math.atan2(t0, t1)
-
-		t2 = +2 * (q.w * q.y - q.z * q.x )
-		if t2 > 1:
-			t2 = 1
-		elif t2 < -1:
-			t2 = -1
-		yaw = math.asin(t2)
-
-		t3 = 2 * (q.w * q.y + q.x *q.z)
-		t4 = 1 -2 * (q.y * q.y + q.z * q.z)
-		roll = math.atan2(t3, t4)
-
-		#print("Roll: {0}, Pitch: {1}, Yaw: {2}".format(math.degrees(roll), math.degrees(pitch), math.degrees(yaw)))
-		return [roll, pitch, yaw]
-
-	## Calcular el angulo entre dos puntos
-	@staticmethod 
-	def yaw( vector):
-		return math.atan2(vector['x'], -vector['y'])
-
-	@staticmethod 
-	def pitch ( vector):
-		return math.atan2(math.sqrt(math.pow(vector['x'],2)+math.pow(vector['y'],2)), vector['z'])
-
-	@staticmethod
-	def ecuRecta(espeMin, espeMax, min, max, value):
-		xmax = 2.2
-		xmin = -0.5
-		ymax = -2.0857
-		ymin = +2.0857
-		conve = ((ymax-ymin)/(xmax-xmin)) *  (giros - xmin ) + ymin
-		print conve
-
-
-	## Mover robot de maquina virtual
-	@staticmethod 
-	def moverRobot(giros, ip, puerto):
-		#print('Pepper mov: {}'.format(math.degrees(conve)))
-		try:
-			mot.setAngles('RShoulderPitch', conve , 0.5)
-		except:
-			pass
-
 	@staticmethod 
 	def main_carlos(data):
 		#print data
-		giros = Pepper.reskeleton(data)
-		#giros_adaptados = Pepper.calculateGiros(giros)
+		esqueleto = Pepper.reskeleton(data)
+		giros = Pepper.giros(esqueleto)
+		movimientos = Pepper.movimientos(giros)
+		Pepper.moverRobot(movimientos)
+		#giros_ada
+
+		ptados = Pepper.calculateGiros(giros)
 		# giros = Pepper.calculateGiros(esqueleto)
 		# Pepper.moverRobot(giros, 'localhost', 62669)
 		# Pepper.main_carlos(esqueleto)
 	#giros   = self.calculateGiros(skeleto)
 	#print(data.SkeletonPositions[JointId.Head])
+
+
+	## Calcular los angulos de la mecanica de los brazos
+	#@staticmethod 
+	#def calculateGiros( giros ):
+	#	girosEsperados = {}
+	#	girosEsperados['shoulderPitch'] = ecuRecta(2.2, -0.5, -2.0857,  2.0857, giros['shoulderPitch'])
+	#	girosEsperados['shoulderRoll']  = ecuRecta(2.2, -0.5, -1.5620, -0.0087, giros['shoulderRoll'])	
+	#	return girosEsperados
+
+	#@staticmethod
+	#def vector(a,b):
+	#	vector = {}
+	#	vector['x'] = b.x - a.x
+	#	vector['y'] = b.y - a.y
+	#	vector['z'] = b.z - a.z
+	#	return vector
+	#@staticmethod
+	#def quaternion2euler(q):
+	#	#print q
+	#	t0   = 2 * (q.w * q.x + q.y * q.z)
+	#	t1   = 1 - 2 * (q.x * q.x + q.y * q.y)
+	#	pitch = math.atan2(t0, t1)
+
+	#	t2 = +2 * (q.w * q.y - q.z * q.x )
+	#	if t2 > 1:
+	#		t2 = 1
+	#	elif t2 < -1:
+	#		t2 = -1
+	#	yaw = math.asin(t2)
+
+	#	t3 = 2 * (q.w * q.y + q.x *q.z)
+	#	t4 = 1 -2 * (q.y * q.y + q.z * q.z)
+	#	roll = math.atan2(t3, t4)
+
+	#	#print("Roll: {0}, Pitch: {1}, Yaw: {2}".format(math.degrees(roll), math.degrees(pitch), math.degrees(yaw)))
+	#	return [roll, pitch, yaw]
+
+	### Calcular el angulo entre dos puntos
+	#@staticmethod 
+	#def yaw( vector):
+	#	return math.atan2(vector['x'], -vector['y'])
+
+	#@staticmethod 
+	#def pitch ( vector):
+	#	return math.atan2(math.sqrt(math.pow(vector['x'],2)+math.pow(vector['y'],2)), vector['z'])
+
+	#@staticmethod
+	#def ecuRecta(espeMin, espeMax, min, max, value):
+	#	xmax = 2.2
+	#	xmin = -0.5
+	#	ymax = -2.0857
+	#	ymin = +2.0857
+	#	conve = ((ymax-ymin)/(xmax-xmin)) *  (giros - xmin ) + ymin
+	#	print conve
+
+
+	# ## Mover robot de maquina virtual
+	# @staticmethod 
+	# def moverRobot(giros, ip, puerto):
+	# 	#print('Pepper mov: {}'.format(math.degrees(conve)))
+	# 	try:
+	# 		mot.setAngles('RShoulderPitch', conve , 0.5)
+	# 	except:
+	# 		pass
+
 
 
 
@@ -228,9 +275,7 @@ else:
 
 _PyObject_AsWriteBuffer = ctypes.pythonapi.PyObject_AsWriteBuffer
 _PyObject_AsWriteBuffer.restype = ctypes.c_int
-_PyObject_AsWriteBuffer.argtypes = [ctypes.py_object,
-									ctypes.POINTER(ctypes.c_void_p),
-									ctypes.POINTER(Py_ssize_t)]
+_PyObject_AsWriteBuffer.argtypes = [ctypes.py_object, ctypes.POINTER(ctypes.c_void_p),ctypes.POINTER(Py_ssize_t)]
 
 def surface_to_array(surface):
 	 buffer_interface = surface.get_buffer()
