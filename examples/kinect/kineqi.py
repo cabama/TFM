@@ -34,9 +34,11 @@ import signal
 import qi
 import os
 import time
+from quaternion import Quaternion
+
 
 from naoqi import ALProxy
-mot = ALProxy("ALMotion", 'localhost', 62669)
+mot = ALProxy("ALMotion", 'localhost', 61535)
 KINECTEVENT = pygame.USEREVENT
 DEPTH_WINSIZE = 320,240
 VIDEO_WINSIZE = 640,480
@@ -87,7 +89,7 @@ class Pepper:
 
 	# Calculamos los angulos que forman los dos puntos (articulaciones) en los tres planos.
 	@staticmethod
-	def angulosXplano (puntoA, puntoB):
+	def angulosXplano (puntoA, puntoB, hombroDer=False):
 
 		def calcularAngulo(uno, dos):
 			# Compute the angle
@@ -100,12 +102,19 @@ class Pepper:
 		dy = puntoB.y - puntoA.y
 		dz = puntoB.z - puntoA.z
 
+
+		if hombroDer == True:
+			dz = dz + 0.09
+			if dz < 0.0001 and dy > 0:
+				dz = 0.0001
+
 		yaw  = calcularAngulo(dx, dy)
 		roll = calcularAngulo(dy, dz)
 		pitch = calcularAngulo(dx, dz)
 
-		angulosEuler = {'roll': roll, 'pitch': pitch, 'yaw': yaw}
-		return angulosEuler
+
+		angulosEuler = {'roll': roll, 'pitch': pitch, 'yaw': yaw, 'dx': dx, 'dy':dy, 'dz':dz}
+ 		return angulosEuler
 		#roll = ecRecta(110, -110, 350, 200, roll)
 		#pitch = ecRecta(-0.5, -89.5, 230, 160, pitch)
 		#print('Mierda roll {1}, yaw {0}, pitch {2}'.format(yaw,roll, pitch))
@@ -115,17 +124,22 @@ class Pepper:
 		#except:
 		#	print('Fuera de rango')
 
+
+
 	## Esta funcion crea un diccionario que contiene los angulos de euler por cada articulacion. (Pitch, Roll y Yaw).
 	## Estos angulos se calcular llamanando a la funcion angulosXplano
 	@staticmethod
 	def giros(esqueleto):
 		giros = {}
-		giros['hombroDer']	= Pepper.angulosXplano(esqueleto['codoDer'], esqueleto['hombroDer'])
-		giros['hombroIzq']	= Pepper.angulosXplano(esqueleto['codoIzq'], esqueleto['hombroIzq'])
+		giros['hombroDer']	= Pepper.angulosXplano(esqueleto['codoDer'], esqueleto['hombroDer'], hombroDer=True)
+		giros['hombroIzq']	= Pepper.angulosXplano(esqueleto['codoIzq'], esqueleto['hombroIzq'], hombroDer=True)
 
 
 		if giros['hombroIzq']['pitch'] < 180:
 			giros['hombroIzq']['pitch'] = giros['hombroIzq']['pitch']+360
+
+		#if giros['hombroDer']['pitch'] < 0:
+		#	giros['hombroDer']['pitch'] = 360-giros['hombroDer']['pitch']
 
 		giros['codoDer']	= Pepper.angulosXplano(esqueleto['manoDer'], esqueleto['codoDer'])
 		giros['codoIzq']	= Pepper.angulosXplano(esqueleto['manoIzq'], esqueleto['codoIzq'])
@@ -155,13 +169,22 @@ class Pepper:
 		movimientos['RshoulderRoll'] = ecRecta(-0.5, -89.5, 230, 160, giros['hombroDer']['pitch'])
 		movimientos['RshoulderPitch'] = ecRecta(110, -110, 350, 200,  giros['hombroDer']['roll'])
 		movimientos['LshoulderRoll'] = ecRecta(0.5, 89.5, 320, 400, giros['hombroIzq']['pitch'])
-		movimientos['LshoulderPitch'] = ecRecta(110, -110, 350, 200,  giros['hombroIzq']['roll'])
+		movimientos['LshoulderPitch'] = ecRecta(110, -110, 370, 200,  giros['hombroIzq']['roll'])
 		movimientos['RElbowRoll'] = ecRecta(0, 89.5, 250, 191,  giros['codoDer']['roll'])
 
 		# render text
-		#myfont = pygame.font.SysFont("monospace", 20)
-		#label = myfont.render("mov izq "+str(movimientos['LshoulderRoll'] ), 1, (255,0,255))
+		myfont = pygame.font.SysFont("monospace", 20)
+		#label1 = myfont.render("dx"+str(giros['hombroDer']['dx'] ), 1, (255,0,255))
+		#label2 = myfont.render("dy"+str(giros['hombroDer']['dy'] ), 1, (255,0,255))
+		label1 = myfont.render("pitch"+str(giros['hombroIzq']['roll']), 1, (255,0,255))
+		label2  = myfont.render("pitch"+str(giros['codoDer']['pitch'] ), 1, (255,0,255))
+		label3 = myfont.render("movimientos"+str(movimientos['RElbowRoll']), 1, (255,0,255))
+
+		#label3 = myfont.render("Pitch"+str(giros['hombroDer']['pitch'] ), 1, (255,255,0))
 		#screen.blit(label, (100, 100))
+		screen.blit(label1, (100, 100))
+		# screen.blit(label2, (100, 200))
+		# screen.blit(label3, (100, 300))
 
 		return movimientos
 
@@ -174,7 +197,7 @@ class Pepper:
 			mot.setAngles('RShoulderPitch', math.radians(movimientos['RshoulderPitch']), 0.5)
 			mot.setAngles('LShoulderRoll',  math.radians(movimientos['LshoulderRoll']), 0.5)
 			mot.setAngles('LShoulderPitch', math.radians(movimientos['LshoulderPitch']), 0.5)
-			mot.setAngles('RElbowRoll', math.radians(movimientos['RElbowRoll']), 0.5)
+			#mot.setAngles('RElbowRoll', math.radians(movimientos['RElbowRoll']), 0.5)
 		except:
 			print('Algun movimiento no se encuentra dentro del rango de grados')
 	
@@ -184,10 +207,24 @@ class Pepper:
 		esqueleto = Pepper.reskeleton(data)
 		giros = Pepper.giros(esqueleto)
 		movimientos = Pepper.movimientos(giros)
+
+		def ecRecta(pprmin,pprmax,valmin, valmax, value):
+			return ((pprmax-pprmin)/(valmax-valmin)) *  (value - valmin ) + pprmin
+		rotElbowRight = data.calculate_bone_orientations()[JointId.WristRight].hierarchical_rotation.rotation_quaternion
+		elbowRightQuat = Quaternion(rotElbowRight.w,rotElbowRight.x,rotElbowRight.y,rotElbowRight.z)
+		elbowRightEuler = elbowRightQuat.quaternion2euler()
+		elbowRightEuler2 = elbowRightQuat.quaternion2eulerZYZ()
+		print(map(math.degrees, elbowRightEuler2))
+		movCodoDerecho = ecRecta(0.5, 89, -5, 165,  math.degrees(elbowRightEuler[2]))
+		try:
+			mot.setAngles('RElbowRoll', math.radians(movCodoDerecho), 0.5)
+		except:
+			pass
+
 		Pepper.moverRobot(movimientos)
 		#giros_ada
+		#ptados = Pepper.calculateGiros(giros)
 
-		ptados = Pepper.calculateGiros(giros)
 		# giros = Pepper.calculateGiros(esqueleto)
 		# Pepper.moverRobot(giros, 'localhost', 62669)
 		# Pepper.main_carlos(esqueleto)

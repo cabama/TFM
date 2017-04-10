@@ -20,7 +20,7 @@ import ctypes
 
 import pykinect
 from pykinect import nui
-from pykinect.nui import JointId
+from pykinect.nui import JointIds
 
 import pygame
 from pygame.color import THECOLORS
