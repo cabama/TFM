@@ -111,10 +111,17 @@ class Main:
             line = fich.next().strip()
             buffercillo.append(line)
 
-        while
+        for y in range(numeroLineas-1):
+
+            if
 
         fich.close()
 
+
+
+    def runKinect(self):
+        import Plotting
+        plot = Plotting.Plotting()
 
 
 
